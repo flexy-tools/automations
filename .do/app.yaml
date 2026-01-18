@@ -3,10 +3,11 @@ region: nyc
 
 functions:
   - name: glitchtip-webhook-handler
-    source_dir: packages/glitchtip-webhook/handler
-    runtime: nodejs:18
-    routes:
-      - path: /glitchtip-webhook
+    github:
+      repo: flexy-tools/automations
+      branch: main
+      deploy_on_push: true
+    source_dir: /
     envs:
       - key: GITHUB_TOKEN
         scope: RUN_TIME
