@@ -1,0 +1,22 @@
+name: automations
+region: nyc
+
+functions:
+  - name: glitchtip-webhook-handler
+    source_dir: packages/glitchtip-webhook/handler
+    runtime: nodejs:18
+    routes:
+      - path: /glitchtip-webhook
+    envs:
+      - key: GITHUB_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+      - key: GITHUB_REPO_OWNER
+        scope: RUN_TIME
+        value: flexy-tools
+      - key: GITHUB_REPO_NAME
+        scope: RUN_TIME
+        value: flexy-v2-backend
+      - key: WEBHOOK_SECRET
+        scope: RUN_TIME
+        type: SECRET

@@ -1,0 +1,154 @@
+name: Claude Code Error Investigation
+
+on:
+  repository_dispatch:
+    types: [error_investigation]
+
+jobs:
+  investigate:
+    runs-on: ubuntu-latest
+    name: Investigate Error with Claude Code
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Display error information
+        run: |
+          echo "🔍 Error Investigation Triggered"
+          echo "================================"
+          echo "Error ID: ${{ github.event.client_payload.error.errorId }}"
+          echo "Title: ${{ github.event.client_payload.error.title }}"
+          echo "Level: ${{ github.event.client_payload.error.level }}"
+          echo "Platform: ${{ github.event.client_payload.error.platform }}"
+          echo "Environment: ${{ github.event.client_payload.error.environment }}"
+          echo "Project: ${{ github.event.client_payload.error.projectName }}"
+          echo "Timestamp: ${{ github.event.client_payload.error.timestamp }}"
+          echo "================================"
+
+      - name: Create error context file
+        run: |
+          cat > error_context.json << 'EOF'
+          ${{ toJson(github.event.client_payload.error) }}
+          EOF
+          cat error_context.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Claude Code SDK
+        run: |
+          npm install -g @anthropic-ai/claude-code
+
+      - name: Run Claude Code Investigation
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Create investigation prompt
+          cat > investigation_prompt.md << 'EOF'
+          # Error Investigation Request
+
+          An error has been detected in production. Please investigate and create a fix.
+
+          ## Error Details
+
+          **Error ID:** ${{ github.event.client_payload.error.errorId }}
+          **Title:** ${{ github.event.client_payload.error.title }}
+          **Message:** ${{ github.event.client_payload.error.message }}
+          **Level:** ${{ github.event.client_payload.error.level }}
+          **Platform:** ${{ github.event.client_payload.error.platform }}
+          **Environment:** ${{ github.event.client_payload.error.environment }}
+          **Culprit:** ${{ github.event.client_payload.error.culprit }}
+
+          ## Stacktrace
+
+          ```json
+          ${{ toJson(github.event.client_payload.error.stacktrace) }}
+          ```
+
+          ## Context
+
+          ```json
+          ${{ toJson(github.event.client_payload.error.context) }}
+          ```
+
+          ## Tags
+
+          ```json
+          ${{ toJson(github.event.client_payload.error.tags) }}
+          ```
+
+          ## Instructions
+
+          1. Analyze the error and its stacktrace
+          2. Identify the root cause
+          3. Locate the problematic code in the repository
+          4. Implement a fix for the issue
+          5. Add tests to prevent regression
+          6. Create a PR with:
+             - Clear description of the issue
+             - Explanation of the fix
+             - Test coverage
+             - Reference to error ID: ${{ github.event.client_payload.error.errorId }}
+
+          Please proceed with the investigation and fix.
+          EOF
+
+          cat investigation_prompt.md
+
+          # Run Claude Code in headless mode (this is a placeholder - actual implementation depends on Claude Code SDK)
+          # For now, we'll use the GitHub CLI to create an issue as a placeholder
+          echo "Note: Claude Code SDK integration is pending. Creating GitHub issue as placeholder."
+
+      - name: Create GitHub Issue (Placeholder for Claude Code)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "🤖 Error Investigation: ${{ github.event.client_payload.error.title }}" \
+            --body "**Error ID:** ${{ github.event.client_payload.error.errorId }}
+
+          **Level:** ${{ github.event.client_payload.error.level }}
+          **Platform:** ${{ github.event.client_payload.error.platform }}
+          **Environment:** ${{ github.event.client_payload.error.environment }}
+          **Timestamp:** ${{ github.event.client_payload.error.timestamp }}
+
+          **Message:**
+          \`\`\`
+          ${{ github.event.client_payload.error.message }}
+          \`\`\`
+
+          **Culprit:** ${{ github.event.client_payload.error.culprit }}
+
+          **Stacktrace:**
+          \`\`\`json
+          ${{ toJson(github.event.client_payload.error.stacktrace) }}
+          \`\`\`
+
+          **Full Error Context:**
+          See [error_context.json](error_context.json) for complete details.
+
+          ---
+
+          🤖 This issue was automatically created by the GlitchTip error monitoring system.
+          Claude Code investigation is pending implementation." \
+            --label "bug,automated,glitchtip" \
+            --assignee "${{ github.repository_owner }}"
+
+      # TODO: Replace the issue creation above with actual Claude Code SDK call
+      # Example (pseudo-code):
+      # - name: Run Claude Code Investigation
+      #   run: |
+      #     claude-code investigate \
+      #       --error-context error_context.json \
+      #       --create-pr \
+      #       --auto-commit
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f error_context.json investigation_prompt.md

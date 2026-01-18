@@ -1,0 +1,22 @@
+targetNamespace: ''
+parameters: {}
+environment:
+  GITHUB_TOKEN: ${GITHUB_TOKEN}
+  GITHUB_REPO_OWNER: ${GITHUB_REPO_OWNER}
+  GITHUB_REPO_NAME: ${GITHUB_REPO_NAME}
+  WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+packages:
+  - name: glitchtip-webhook
+    shared: false
+    environment: {}
+    parameters: {}
+    annotations: {}
+    functions:
+      - name: handler
+        runtime: 'nodejs:18'
+        web: true
+        webSecure: false
+        parameters: {}
+        environment: {}
+        annotations: {}
+        limits: {}

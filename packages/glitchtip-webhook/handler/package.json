@@ -1,0 +1,10 @@
+{
+  "name": "glitchtip-webhook-handler",
+  "version": "1.0.0",
+  "description": "Webhook handler for GlitchTip errors",
+  "type": "module",
+  "main": "index.js",
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  }
+}

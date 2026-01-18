@@ -1,0 +1,17 @@
+{
+  "name": "automations",
+  "version": "1.0.0",
+  "description": "Automated error investigation and PR creation system",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/**/*.test.js",
+    "deploy": "doctl serverless deploy .",
+    "dev": "doctl serverless watch ."
+  },
+  "keywords": ["automation", "glitchtip", "github", "claude-code"],
+  "author": "Flexy Tools",
+  "license": "MIT",
+  "devDependencies": {
+    "node-fetch": "^3.3.2"
+  }
+}
