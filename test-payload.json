@@ -1,0 +1,20 @@
+{
+  "event": {
+    "id": "test-error-123",
+    "title": "Test Error from Deployment Verification",
+    "message": "Testing the webhook handler deployment",
+    "level": "error",
+    "platform": "python",
+    "culprit": "test.py in test_function",
+    "timestamp": "2026-01-18T20:00:00Z",
+    "tags": {
+      "environment": "production"
+    },
+    "contexts": {
+      "runtime": {
+        "name": "python",
+        "version": "3.11.0"
+      }
+    }
+  }
+}
