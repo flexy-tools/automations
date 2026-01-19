@@ -56,6 +56,7 @@ jobs:
           if [ -f development.txt ]; then pip install -r development.txt; fi
 
       - name: Create investigation issue
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -138,6 +139,18 @@ jobs:
 
           This error has been detected again. Please prioritize investigation."
           fi
+
+      - name: Log investigation completion
+        run: |
+          echo "✅ Error investigation workflow completed"
+          echo "Error ID: ${{ github.event.client_payload.error.errorId }}"
+          echo "Error Type: ${{ github.event.client_payload.error.errorType }}"
+          echo "Application: ${{ github.event.client_payload.error.projectName }}"
+          echo ""
+          echo "Note: If GitHub Issues are disabled on this repository, the issue creation"
+          echo "step will fail gracefully. The error details are still logged in this workflow."
+          echo ""
+          echo "Full error context is available in the workflow artifacts."
 
       - name: Cleanup
         if: always()
