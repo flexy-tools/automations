@@ -1,0 +1,24 @@
+{
+  "data": {
+    "id": "915790763",
+    "type": "incident",
+    "attributes": {
+      "url": "",
+      "name": "10th occurrence of ZeroDivisionError from flexy-v2-backend-staging",
+      "cause": "**ZeroDivisionError**\n```\ndivision by zero\n```\n`flexy/urls.py` in `trigger_error`\n\nApplication: flexy-v2-backend-staging\nEnvironments: Production\nExceptions: > 10\nFirst seen at: Jan 19, 2026 at 12:30pm UTC",
+      "metadata": [
+        {
+          "key": "Application",
+          "value": "flexy-v2-backend-staging"
+        }
+      ],
+      "started_at": "2026-01-19 16:19:23 UTC",
+      "http_method": "",
+      "resolved_at": "",
+      "response_url": "",
+      "screenshot_url": "",
+      "acknowledged_at": "",
+      "response_content": ""
+    }
+  }
+}
