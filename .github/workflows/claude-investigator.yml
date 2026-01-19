@@ -55,148 +55,22 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           if [ -f development.txt ]; then pip install -r development.txt; fi
 
-      - name: Set up Node.js for Claude Code
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install Claude Code CLI
-        run: |
-          npm install -g @anthropic-ai/claude-code
-
-      - name: Configure Git
-        run: |
-          git config --global user.name "Claude Code Bot"
-          git config --global user.email "claude-code-bot@flexy-tools.com"
-
-      - name: Create investigation branch
-        run: |
-          BRANCH_NAME="fix/error-${{ github.event.client_payload.error.errorId }}"
-          git checkout -b "$BRANCH_NAME"
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
-
-      - name: Create investigation prompt
-        run: |
-          cat > investigation_prompt.md << 'EOF'
-          # 🐛 Automated Error Investigation
-
-          A production error has been detected by BetterStack monitoring. Please investigate and create a fix.
-
-          ## Error Information
-
-          - **Error ID**: ${{ github.event.client_payload.error.errorId }}
-          - **Error Type**: ${{ github.event.client_payload.error.errorType }}
-          - **Title**: ${{ github.event.client_payload.error.title }}
-          - **Message**: ${{ github.event.client_payload.error.message }}
-          - **File/Function**: ${{ github.event.client_payload.error.culprit }}
-          - **Platform**: ${{ github.event.client_payload.error.platform }}
-          - **Environment**: ${{ github.event.client_payload.error.environment }}
-          - **Application**: ${{ github.event.client_payload.error.projectName }}
-          - **Timestamp**: ${{ github.event.client_payload.error.timestamp }}
-
-          ## Stacktrace and Context
-
-          ```json
-          ${{ toJson(github.event.client_payload.error.stacktrace) }}
-          ```
-
-          ## Full Context
-
-          ```json
-          ${{ toJson(github.event.client_payload.error.context) }}
-          ```
-
-          ## Investigation Tasks
-
-          Please perform the following:
-
-          1. **Analyze the Error**:
-             - Read the file mentioned in the culprit: `${{ github.event.client_payload.error.culprit }}`
-             - Understand what caused the error
-             - Check if this is a real bug or a test endpoint
-
-          2. **Identify Root Cause**:
-             - Determine why this error occurred
-             - Check if it's a code issue, configuration issue, or intentional behavior
-             - If it's the `/sentry-debug/` endpoint, this is intentional for testing
-
-          3. **Implement Fix**:
-             - If this is a real bug, implement a proper fix
-             - If this is a test endpoint triggering false alerts, consider:
-               a) Adding proper error handling
-               b) Documenting it's for testing only
-               c) Adding a flag to disable in production
-             - Ensure the fix doesn't break existing functionality
-
-          4. **Add Tests** (if applicable):
-             - Write unit tests to prevent regression
-             - Ensure existing tests still pass
-
-          5. **Commit Changes**:
-             - Make clear, descriptive commit messages
-             - Reference error ID: ${{ github.event.client_payload.error.errorId }}
-
-          ## Important Notes
-
-          - This repository follows Django/Python best practices
-          - Check `CLAUDE.md` for project-specific guidelines
-          - Run tests before committing: `python manage.py test`
-          - Follow PEP 8 style guidelines
-
-          Please proceed with the investigation and fix. Commit your changes to this branch.
-          EOF
-
-          cat investigation_prompt.md
-
-      - name: Run Claude Code Investigation
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          echo "Starting Claude Code investigation..."
-
-          # Run Claude Code with the investigation prompt
-          claude-code --prompt "$(cat investigation_prompt.md)" \
-            --auto-commit \
-            --max-iterations 10 \
-            2>&1 | tee claude_output.log || echo "Claude Code execution completed"
-
-          echo "Claude Code investigation completed"
-
-      - name: Check for changes
-        id: check_changes
-        run: |
-          if git diff --quiet HEAD; then
-            echo "has_changes=false" >> $GITHUB_OUTPUT
-            echo "No changes were made by Claude Code"
-          else
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-            echo "Changes detected:"
-            git status
-            git diff --stat
-          fi
-
-      - name: Push changes
-        if: steps.check_changes.outputs.has_changes == 'true'
-        run: |
-          git push origin "$BRANCH_NAME"
-
-      - name: Create Pull Request
-        if: steps.check_changes.outputs.has_changes == 'true'
+      - name: Create investigation issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Create PR body with error details
-          cat > pr_body.md << 'EOFPR'
-          ## 🤖 Automated Error Fix
+          # Create issue body with error details
+          cat > issue_body.md << 'EOFISSUE'
+          ## 🚨 Production Error Detected
 
-          This PR was automatically created by Claude Code in response to a production error detected by BetterStack.
+          An error was automatically detected by BetterStack monitoring and requires investigation.
 
           ### Error Details
 
-          - **Error ID**: ${{ github.event.client_payload.error.errorId }}
+          - **Error ID**: `${{ github.event.client_payload.error.errorId }}`
           - **Error Type**: `${{ github.event.client_payload.error.errorType }}`
           - **Message**: ${{ github.event.client_payload.error.message }}
-          - **File**: `${{ github.event.client_payload.error.culprit }}`
+          - **File/Function**: `${{ github.event.client_payload.error.culprit }}`
           - **Application**: ${{ github.event.client_payload.error.projectName }}
           - **Environment**: ${{ github.event.client_payload.error.environment }}
           - **Timestamp**: ${{ github.event.client_payload.error.timestamp }}
@@ -207,42 +81,84 @@ jobs:
           ${{ toJson(github.event.client_payload.error.stacktrace) }}
           ```
 
-          ### Changes Made
+          ### Full Context
 
-          Claude Code analyzed the error and implemented a fix. Please review the changes carefully before merging.
+          ```json
+          ${{ toJson(github.event.client_payload.error.context) }}
+          ```
 
-          ### Testing
+          ### Investigation Tasks
 
-          - [ ] Review the code changes
-          - [ ] Run tests locally: `python manage.py test`
-          - [ ] Verify the fix addresses the root cause
-          - [ ] Check for any side effects
+          - [ ] Analyze the error and its stacktrace
+          - [ ] Identify the root cause
+          - [ ] Determine if this is a real bug or expected behavior (e.g., test endpoint)
+          - [ ] Implement a fix if needed
+          - [ ] Add tests to prevent regression
+          - [ ] Create a PR with the fix
+
+          ### Notes
+
+          - Check if `/sentry-debug/` - this is a test endpoint for error monitoring
+          - Follow project guidelines in `CLAUDE.md`
+          - Run tests: `python manage.py test`
+          - Follow PEP 8 style guidelines
 
           ---
 
-          🤖 **Automated PR created by Claude Code**
-          📊 **BetterStack Incident**: ${{ github.event.client_payload.error.errorId }}
-          🔗 **Source**: BetterStack Error Monitoring
-          EOFPR
+          🤖 **Automated issue created by BetterStack Error Monitoring**
+          📊 **Incident ID**: ${{ github.event.client_payload.error.errorId }}
+          🔗 **Source**: BetterStack via DigitalOcean Functions
 
-          # Create the pull request
-          gh pr create \
-            --title "🤖 Fix: ${{ github.event.client_payload.error.title }}" \
-            --body-file pr_body.md \
-            --base main \
-            --head "$BRANCH_NAME" \
-            --label "automated,bug,claude-code" \
-            --assignee "${{ github.repository_owner }}"
+          _Note: Once Claude Code CLI becomes available, this workflow will automatically investigate and create PRs with fixes._
+          EOFISSUE
 
-          echo "✅ Pull request created successfully"
+          # Check if issue already exists
+          EXISTING_ISSUE=$(gh issue list \
+            --label "betterstack,automated" \
+            --search "${{ github.event.client_payload.error.errorId }}" \
+            --json number \
+            --jq '.[0].number' || echo "")
 
-      - name: Comment on failure
-        if: failure()
-        run: |
-          echo "❌ Claude Code investigation failed or encountered an error"
-          echo "Check the logs above for details"
+          if [ -z "$EXISTING_ISSUE" ]; then
+            # Create the issue
+            gh issue create \
+              --title "🤖 Error: ${{ github.event.client_payload.error.title }}" \
+              --body-file issue_body.md \
+              --label "bug,betterstack,automated" \
+              --assignee "${{ github.repository_owner }}"
+            echo "✅ New issue created for error ${{ github.event.client_payload.error.errorId }}"
+          else
+            echo "ℹ️  Issue #$EXISTING_ISSUE already exists for this error"
+            # Add comment to existing issue
+            gh issue comment "$EXISTING_ISSUE" \
+              --body "🔄 **Error occurred again**
+
+          **Timestamp**: ${{ github.event.client_payload.error.timestamp }}
+          **Environment**: ${{ github.event.client_payload.error.environment }}
+
+          This error has been detected again. Please prioritize investigation."
+          fi
 
       - name: Cleanup
         if: always()
         run: |
-          rm -f error_context.json investigation_prompt.md pr_body.md claude_output.log
+          rm -f error_context.json issue_body.md
+
+      # TODO: Replace issue creation with Claude Code investigation when CLI becomes available
+      # - name: Install Claude Code CLI
+      #   run: |
+      #     # Install Claude Code CLI (package name TBD)
+      #     npm install -g @anthropic-ai/claude-code
+      #
+      # - name: Run Claude Code Investigation
+      #   env:
+      #     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      #   run: |
+      #     # Create investigation branch
+      #     git checkout -b "fix/error-${{ github.event.client_payload.error.errorId }}"
+      #
+      #     # Run Claude Code investigation
+      #     claude-code investigate \
+      #       --error-context error_context.json \
+      #       --auto-commit \
+      #       --create-pr
