@@ -11,14 +11,12 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      issues: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Display error information
         run: |
@@ -36,14 +34,6 @@ jobs:
           echo "Source: ${{ github.event.client_payload.source }}"
           echo "============================================="
 
-      - name: Create error context file
-        run: |
-          cat > error_context.json << 'EOF'
-          ${{ toJson(github.event.client_payload.error) }}
-          EOF
-          echo "Error context file created:"
-          cat error_context.json | jq '.'
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -55,123 +45,235 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           if [ -f development.txt ]; then pip install -r development.txt; fi
 
-      - name: Create investigation issue
-        continue-on-error: true
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude SDK
+        run: |
+          npm install -g @anthropic-ai/sdk
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "Claude Code Bot"
+          git config --global user.email "claude-code-bot@flexy-tools.com"
+
+      - name: Create investigation branch
+        run: |
+          BRANCH_NAME="fix/error-${{ github.event.client_payload.error.errorId }}"
+          git checkout -b "$BRANCH_NAME"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+
+      - name: Run Claude investigation and create fix
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          cat > investigate.js << 'EOFJS'
+          const Anthropic = require("@anthropic-ai/sdk");
+          const fs = require("fs");
+          const { execSync } = require("child_process");
+
+          const anthropic = new Anthropic({
+            apiKey: process.env.ANTHROPIC_API_KEY,
+          });
+
+          const errorContext = ${{ toJson(github.event.client_payload.error) }};
+
+          async function investigateAndFix() {
+            console.log("🔍 Starting Claude investigation...");
+
+            // Extract file path from culprit
+            const culpritMatch = errorContext.culprit.match(/([^\s]+\.py)/);
+            const filePath = culpritMatch ? culpritMatch[1] : null;
+
+            let fileContent = "";
+            if (filePath && fs.existsSync(filePath)) {
+              fileContent = fs.readFileSync(filePath, "utf-8");
+              console.log(`📄 Read file: ${filePath} (${fileContent.length} bytes)`);
+            }
+
+            const prompt = `You are investigating a production error. Analyze it and create a fix.
+
+## Error Information
+- **Error Type**: ${errorContext.errorType}
+- **Message**: ${errorContext.message}
+- **File**: ${errorContext.culprit}
+- **Application**: ${errorContext.projectName}
+- **Environment**: ${errorContext.environment}
+
+## Stacktrace
+\`\`\`
+${JSON.stringify(errorContext.stacktrace, null, 2)}
+\`\`\`
+
+## File Content (${filePath || 'Not found'})
+\`\`\`python
+${fileContent || 'File not available'}
+\`\`\`
+
+## Task
+1. Analyze the error
+2. Identify the root cause
+3. If this is the /sentry-debug/ test endpoint, implement proper handling to prevent false alerts in production
+4. Otherwise, implement a proper fix for the bug
+5. Provide the COMPLETE fixed file content
+
+## Response Format
+Provide your response in this exact format:
+
+### Analysis
+[Your analysis of the error]
+
+### Fix Implementation
+\`\`\`python
+[Complete fixed file content]
+\`\`\`
+
+### Explanation
+[Brief explanation of what you changed and why]`;
+
+            const message = await anthropic.messages.create({
+              model: "claude-sonnet-4-20250514",
+              max_tokens: 4096,
+              messages: [
+                {
+                  role: "user",
+                  content: prompt,
+                },
+              ],
+            });
+
+            const response = message.content[0].text;
+            console.log("📝 Claude's response:");
+            console.log(response);
+
+            // Extract the fixed code
+            const codeMatch = response.match(/```python\n([\s\S]*?)\n```/);
+            if (codeMatch && filePath) {
+              const fixedCode = codeMatch[1];
+              fs.writeFileSync(filePath, fixedCode, "utf-8");
+              console.log(`✅ Applied fix to ${filePath}`);
+
+              // Stage the file
+              execSync(`git add ${filePath}`);
+
+              // Extract explanation for commit message
+              const explanationMatch = response.match(/### Explanation\n([\s\S]*?)(?=\n###|$)/);
+              const explanation = explanationMatch ? explanationMatch[1].trim() : "Fix production error";
+
+              // Create commit
+              const commitMessage = `Fix: ${errorContext.title}
+
+${explanation}
+
+Error ID: ${errorContext.errorId}
+Error Type: ${errorContext.errorType}
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude Sonnet 4 <noreply@anthropic.com>`;
+
+              fs.writeFileSync("commit_message.txt", commitMessage);
+              execSync("git commit -F commit_message.txt");
+              console.log("✅ Created commit");
+
+              return { success: true, filePath, explanation };
+            } else {
+              console.log("⚠️  No code block found in response or file path not available");
+              return { success: false, reason: "No fix generated" };
+            }
+          }
+
+          investigateAndFix()
+            .then((result) => {
+              if (result.success) {
+                console.log("✅ Investigation completed successfully");
+                process.exit(0);
+              } else {
+                console.log("⚠️  Investigation completed but no changes made");
+                process.exit(0);
+              }
+            })
+            .catch((error) => {
+              console.error("❌ Investigation failed:", error);
+              process.exit(1);
+            });
+          EOFJS
+
+          node investigate.js
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet HEAD~1; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes were made by Claude"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected:"
+            git show --stat
+          fi
+
+      - name: Push changes
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          git push origin "$BRANCH_NAME"
+
+      - name: Create Pull Request
+        if: steps.check_changes.outputs.has_changes == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Create issue body with error details
-          cat > issue_body.md << 'EOFISSUE'
-          ## 🚨 Production Error Detected
+          # Extract commit message for PR body
+          PR_BODY=$(git log -1 --pretty=%B)
 
-          An error was automatically detected by BetterStack monitoring and requires investigation.
+          # Create the pull request
+          gh pr create \
+            --title "🤖 Fix: ${{ github.event.client_payload.error.title }}" \
+            --body "## 🤖 Automated Error Fix
 
-          ### Error Details
+This PR was automatically created by Claude in response to a production error detected by BetterStack.
 
-          - **Error ID**: `${{ github.event.client_payload.error.errorId }}`
-          - **Error Type**: `${{ github.event.client_payload.error.errorType }}`
-          - **Message**: ${{ github.event.client_payload.error.message }}
-          - **File/Function**: `${{ github.event.client_payload.error.culprit }}`
-          - **Application**: ${{ github.event.client_payload.error.projectName }}
-          - **Environment**: ${{ github.event.client_payload.error.environment }}
-          - **Timestamp**: ${{ github.event.client_payload.error.timestamp }}
+### Error Details
+- **Error ID**: \`${{ github.event.client_payload.error.errorId }}\`
+- **Error Type**: \`${{ github.event.client_payload.error.errorType }}\`
+- **Message**: ${{ github.event.client_payload.error.message }}
+- **File**: \`${{ github.event.client_payload.error.culprit }}\`
+- **Application**: ${{ github.event.client_payload.error.projectName }}
+- **Environment**: ${{ github.event.client_payload.error.environment }}
+- **Timestamp**: ${{ github.event.client_payload.error.timestamp }}
 
-          ### Stacktrace
+### Changes Made
 
-          ```json
-          ${{ toJson(github.event.client_payload.error.stacktrace) }}
-          ```
+$PR_BODY
 
-          ### Full Context
+### Testing
+- [ ] Review the code changes
+- [ ] Run tests locally: \`python manage.py test\`
+- [ ] Verify the fix addresses the root cause
+- [ ] Check for any side effects
 
-          ```json
-          ${{ toJson(github.event.client_payload.error.context) }}
-          ```
+---
 
-          ### Investigation Tasks
+🤖 **Automated PR created by Claude**
+📊 **BetterStack Incident**: ${{ github.event.client_payload.error.errorId }}
+🔗 **Source**: BetterStack Error Monitoring" \
+            --base main \
+            --head "$BRANCH_NAME" \
+            --label "automated,bug,claude-code" \
+            --assignee "${{ github.repository_owner }}"
 
-          - [ ] Analyze the error and its stacktrace
-          - [ ] Identify the root cause
-          - [ ] Determine if this is a real bug or expected behavior (e.g., test endpoint)
-          - [ ] Implement a fix if needed
-          - [ ] Add tests to prevent regression
-          - [ ] Create a PR with the fix
+          echo "✅ Pull request created successfully"
 
-          ### Notes
-
-          - Check if `/sentry-debug/` - this is a test endpoint for error monitoring
-          - Follow project guidelines in `CLAUDE.md`
-          - Run tests: `python manage.py test`
-          - Follow PEP 8 style guidelines
-
-          ---
-
-          🤖 **Automated issue created by BetterStack Error Monitoring**
-          📊 **Incident ID**: ${{ github.event.client_payload.error.errorId }}
-          🔗 **Source**: BetterStack via DigitalOcean Functions
-
-          _Note: Once Claude Code CLI becomes available, this workflow will automatically investigate and create PRs with fixes._
-          EOFISSUE
-
-          # Check if issue already exists
-          EXISTING_ISSUE=$(gh issue list \
-            --label "betterstack,automated" \
-            --search "${{ github.event.client_payload.error.errorId }}" \
-            --json number \
-            --jq '.[0].number' || echo "")
-
-          if [ -z "$EXISTING_ISSUE" ]; then
-            # Create the issue
-            gh issue create \
-              --title "🤖 Error: ${{ github.event.client_payload.error.title }}" \
-              --body-file issue_body.md \
-              --label "bug,betterstack,automated" \
-              --assignee "${{ github.repository_owner }}"
-            echo "✅ New issue created for error ${{ github.event.client_payload.error.errorId }}"
-          else
-            echo "ℹ️  Issue #$EXISTING_ISSUE already exists for this error"
-            # Add comment to existing issue
-            gh issue comment "$EXISTING_ISSUE" \
-              --body "🔄 **Error occurred again**
-
-          **Timestamp**: ${{ github.event.client_payload.error.timestamp }}
-          **Environment**: ${{ github.event.client_payload.error.environment }}
-
-          This error has been detected again. Please prioritize investigation."
-          fi
-
-      - name: Log investigation completion
+      - name: Log completion
         run: |
           echo "✅ Error investigation workflow completed"
           echo "Error ID: ${{ github.event.client_payload.error.errorId }}"
           echo "Error Type: ${{ github.event.client_payload.error.errorType }}"
           echo "Application: ${{ github.event.client_payload.error.projectName }}"
-          echo ""
-          echo "Note: If GitHub Issues are disabled on this repository, the issue creation"
-          echo "step will fail gracefully. The error details are still logged in this workflow."
-          echo ""
-          echo "Full error context is available in the workflow artifacts."
 
       - name: Cleanup
         if: always()
         run: |
-          rm -f error_context.json issue_body.md
-
-      # TODO: Replace issue creation with Claude Code investigation when CLI becomes available
-      # - name: Install Claude Code CLI
-      #   run: |
-      #     # Install Claude Code CLI (package name TBD)
-      #     npm install -g @anthropic-ai/claude-code
-      #
-      # - name: Run Claude Code Investigation
-      #   env:
-      #     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      #   run: |
-      #     # Create investigation branch
-      #     git checkout -b "fix/error-${{ github.event.client_payload.error.errorId }}"
-      #
-      #     # Run Claude Code investigation
-      #     claude-code investigate \
-      #       --error-context error_context.json \
-      #       --auto-commit \
-      #       --create-pr
+          rm -f investigate.js commit_message.txt
