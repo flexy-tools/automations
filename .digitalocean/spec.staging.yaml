@@ -10,11 +10,11 @@ functions:
     source_dir: /
     envs:
       - key: GITHUB_TOKEN
-        scope: RUN_TIME
+        scope: RUN_AND_BUILD_TIME
         type: SECRET
       - key: GITHUB_REPO_OWNER
-        scope: RUN_TIME
+        scope: RUN_AND_BUILD_TIME
         value: flexy-tools
       - key: WEBHOOK_SECRET
-        scope: RUN_TIME
+        scope: RUN_AND_BUILD_TIME
         type: SECRET
