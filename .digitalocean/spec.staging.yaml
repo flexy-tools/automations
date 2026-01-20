@@ -15,9 +15,6 @@ functions:
       - key: GITHUB_REPO_OWNER
         scope: RUN_TIME
         value: flexy-tools
-      - key: GITHUB_REPO_NAME
-        scope: RUN_TIME
-        value: flexy-v2-backend
       - key: WEBHOOK_SECRET
         scope: RUN_TIME
         type: SECRET

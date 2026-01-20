@@ -90,20 +90,53 @@ function extractStacktraceFromCause(cause) {
 }
 
 /**
- * Trigger GitHub repository_dispatch event
+ * Map application name to GitHub repository name
+ * @param {string} applicationName - Application name from BetterStack (e.g., "flexy-v2-provider-staging")
+ * @returns {string} - Repository name (e.g., "flexy-v2-provider")
  */
-async function triggerGitHubAction(errorData) {
+function mapApplicationToRepository(applicationName) {
+  // Extract the base application name (remove environment suffix)
+  const baseAppName = applicationName
+    .replace(/-staging$/, '')
+    .replace(/-production$/, '')
+    .replace(/-dev$/, '');
+
+  // Map application names to repository names
+  const repoMap = {
+    'flexy-v2-backend': 'flexy-v2-backend',
+    'flexy-v2-provider': 'flexy-v2-provider',
+    'flexy-v2-client': 'flexy-v2-client',
+    'flexy-v2-e2e': 'flexy-v2-e2e',
+    'automations': 'automations'
+  };
+
+  const repoName = repoMap[baseAppName];
+
+  if (!repoName) {
+    console.warn(`[Repository Routing] Unknown application: ${applicationName}, defaulting to flexy-v2-backend`);
+    return 'flexy-v2-backend';
+  }
+
+  console.log(`[Repository Routing] ${applicationName} → ${repoName}`);
+  return repoName;
+}
+
+/**
+ * Trigger GitHub repository_dispatch event
+ * @param {object} errorData - Error data to send to GitHub
+ * @param {string} targetRepo - Target repository name
+ */
+async function triggerGitHubAction(errorData, targetRepo) {
   const {
     GITHUB_TOKEN,
-    GITHUB_REPO_OWNER,
-    GITHUB_REPO_NAME
+    GITHUB_REPO_OWNER
   } = process.env;
 
-  if (!GITHUB_TOKEN || !GITHUB_REPO_OWNER || !GITHUB_REPO_NAME) {
+  if (!GITHUB_TOKEN || !GITHUB_REPO_OWNER) {
     throw new Error('Missing required GitHub environment variables');
   }
 
-  const url = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/dispatches`;
+  const url = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${targetRepo}/dispatches`;
 
   const payload = {
     event_type: 'error_investigation',
@@ -133,7 +166,7 @@ async function triggerGitHubAction(errorData) {
   return {
     success: true,
     statusCode: response.status,
-    repo: `${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}`
+    repo: `${GITHUB_REPO_OWNER}/${targetRepo}`
   };
 }
 
@@ -178,8 +211,12 @@ export async function main(args) {
     const errorData = parseBetterStackError(payload);
     console.log('[BetterStack Webhook] Parsed error:', JSON.stringify(errorData, null, 2));
 
+    // Map application name to target repository
+    const targetRepo = mapApplicationToRepository(errorData.projectName);
+    console.log('[BetterStack Webhook] Target repository:', targetRepo);
+
     // Trigger GitHub Action for Claude Code investigation
-    const result = await triggerGitHubAction(errorData);
+    const result = await triggerGitHubAction(errorData, targetRepo);
     console.log('[BetterStack Webhook] GitHub Action triggered:', JSON.stringify(result, null, 2));
 
     const duration = Date.now() - startTime;
