@@ -11,6 +11,9 @@ packages:
         runtime: 'nodejs:18'
         web: true
         parameters: {}
-        environment: {}
+        environment:
+          GITHUB_TOKEN: ''
+          GITHUB_REPO_OWNER: ''
+          WEBHOOK_SECRET: ''
         annotations: {}
         limits: {}
