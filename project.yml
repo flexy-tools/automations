@@ -3,10 +3,7 @@ parameters: {}
 packages:
   - name: glitchtip-webhook
     shared: false
-    environment:
-      GITHUB_TOKEN: ''
-      GITHUB_REPO_OWNER: ''
-      WEBHOOK_SECRET: ''
+    environment: {}
     parameters: {}
     annotations: {}
     functions:
