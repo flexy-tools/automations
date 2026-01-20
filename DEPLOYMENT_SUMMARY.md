@@ -222,8 +222,8 @@ automations/
 │   └── workflows/
 │       ├── deploy.yml                    # CI/CD for DigitalOcean
 │       └── claude-investigator.yml       # Error investigation workflow
-├── .do/
-│   └── app.yaml                          # App Platform spec
+├── .digitalocean/
+│   └── spec.staging.yaml                 # App Platform spec
 ├── docs/
 │   ├── ARCHITECTURE.md                   # System architecture
 │   └── DEPLOYMENT.md                     # Deployment guide

@@ -170,7 +170,7 @@ automations/
 ├── .env                              # Environment variables (GITIGNORED)
 ├── .gitignore                        # Excludes .env and secrets
 ├── project.yml                       # ✅ FIXED - No webSecure, env placeholders
-├── .do/app.yaml                      # App Platform spec
+├── .digitalocean/spec.staging.yaml   # App Platform spec
 ├── packages/glitchtip-webhook/
 │   └── handler/
 │       ├── index.js                  # Webhook handler

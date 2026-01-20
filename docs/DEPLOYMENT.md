@@ -142,7 +142,7 @@ doctl serverless functions get glitchtip-webhook/handler --url
 
 #### 2. Configure App
 
-The `.do/app.yaml` file will be auto-detected.
+The `.digitalocean/spec.staging.yaml` file will be auto-detected.
 
 Review settings:
 - Function name: `glitchtip-webhook-handler`
@@ -281,7 +281,7 @@ gh run view <run-id> --log
 
 **Common issues:**
 - Missing `DIGITALOCEAN_ACCESS_TOKEN` secret
-- Invalid `.do/app.yaml` syntax
+- Invalid `.digitalocean/spec.staging.yaml` syntax
 - Insufficient DigitalOcean quota
 
 ### Function Not Responding
@@ -336,7 +336,7 @@ git push origin main
 
 ### Increase Function Resources
 
-Edit `.do/app.yaml`:
+Edit `.digitalocean/spec.staging.yaml`:
 
 ```yaml
 functions:
@@ -389,7 +389,7 @@ git push origin main
 ### Backup Configuration
 
 Regularly backup:
-- `.do/app.yaml`
+- `.digitalocean/spec.staging.yaml`
 - `project.yml`
 - Environment variable configurations
 - GlitchTip webhook settings

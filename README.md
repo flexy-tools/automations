@@ -136,8 +136,8 @@ automations/
 │   └── workflows/
 │       ├── deploy.yml            # CI/CD pipeline
 │       └── claude-investigator.yml
-├── .do/
-│   └── app.yaml                  # App Platform config
+├── .digitalocean/
+│   └── spec.staging.yaml        # App Platform config
 ├── project.yml                   # DigitalOcean Functions config
 └── README.md
 ```

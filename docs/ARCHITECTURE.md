@@ -115,7 +115,7 @@ The Automations system provides automated error investigation and PR creation fo
 
 ### DigitalOcean App Platform Spec
 
-**File:** `.do/app.yaml`
+**File:** `.digitalocean/spec.staging.yaml`
 
 Defines:
 - Function name and runtime
