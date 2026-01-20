@@ -3,7 +3,10 @@ parameters: {}
 packages:
   - name: glitchtip-webhook
     shared: false
-    environment: {}
+    environment:
+      GITHUB_TOKEN: ''
+      GITHUB_REPO_OWNER: ''
+      WEBHOOK_SECRET: ''
     parameters: {}
     annotations: {}
     functions:
@@ -11,9 +14,6 @@ packages:
         runtime: 'nodejs:18'
         web: true
         parameters: {}
-        environment:
-          GITHUB_TOKEN: ''
-          GITHUB_REPO_OWNER: ''
-          WEBHOOK_SECRET: ''
+        environment: {}
         annotations: {}
         limits: {}
